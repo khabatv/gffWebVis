@@ -4,7 +4,9 @@ import matplotlib.patches as mpatches
 from matplotlib.patches import FancyBboxPatch
 import streamlit as st
 from io import StringIO
+import random
 
+# Function to parse the GFF file
 def parse_gff(uploaded_file):
     domain_data = []
     protein_names = set()
@@ -34,7 +36,12 @@ def parse_gff(uploaded_file):
     
     return domain_data, protein_names
 
-def plot_domains(domain_data, selected_proteins, selected_domains, shape_choice):
+# Function to generate random color in hex format
+def random_color():
+    return "#{:06x}".format(random.randint(0, 0xFFFFFF))
+
+# Function to plot the protein domains with selected colors
+def plot_domains(domain_data, selected_proteins, selected_domains, shape_choice, domain_colors):
     filtered_data = [
         entry for entry in domain_data 
         if entry[0] in selected_proteins and entry[3] in selected_domains
@@ -45,9 +52,6 @@ def plot_domains(domain_data, selected_proteins, selected_domains, shape_choice)
     if df.empty:
         st.info("No domain data found for the selected proteins and domains!")
         return
-
-    unique_domains = df['Domain'].unique()
-    color_map = {domain: plt.cm.tab10(i) for i, domain in enumerate(unique_domains)}
 
     fig, ax = plt.subplots(figsize=(10, len(selected_proteins) * 1.5))
 
@@ -62,23 +66,25 @@ def plot_domains(domain_data, selected_proteins, selected_domains, shape_choice)
             width = row["End"] - row["Start"]
             alpha_value = 0.6  # Set transparency for overlapping domains
 
+            domain_color = domain_colors.get(row["Domain"], "#1f77b4")  # Default to blue if not specified
+
             if shape_choice == "Rectangle":
                 ax.add_patch(mpatches.Rectangle((row["Start"], y_position),
                                                  width, protein_height,
-                                                 color=color_map[row["Domain"]],
+                                                 color=domain_color,
                                                  alpha=alpha_value,  # Set transparency
                                                  label=row["Domain"] if row["Domain"] not in ax.get_legend_handles_labels()[1] else ""))
             elif shape_choice == "Rounded Rectangle":
                 ax.add_patch(FancyBboxPatch((row["Start"], y_position),
                                             width, protein_height,
                                             boxstyle="round,pad=0.02,rounding_size=0.15",
-                                            color=color_map[row["Domain"]],
+                                            color=domain_color,
                                             alpha=alpha_value,  # Set transparency
                                             label=row["Domain"] if row["Domain"] not in ax.get_legend_handles_labels()[1] else ""))
             elif shape_choice == "Oval":
                 ax.add_patch(mpatches.Ellipse(((row["Start"] + row["End"]) / 2, y_position + protein_height / 2),
                                               width, protein_height,
-                                              color=color_map[row["Domain"]],
+                                              color=domain_color,
                                               alpha=alpha_value,  # Set transparency
                                               label=row["Domain"] if row["Domain"] not in ax.get_legend_handles_labels()[1] else ""))
 
@@ -90,7 +96,7 @@ def plot_domains(domain_data, selected_proteins, selected_domains, shape_choice)
     ax.set_xlabel("Position on Protein Sequence")
     ax.set_title("Protein Domains Visualization")
 
-    handles = [mpatches.Patch(color=color_map[domain], label=domain, alpha=alpha_value) for domain in unique_domains]
+    handles = [mpatches.Patch(color=domain_colors[domain], label=domain, alpha=alpha_value) for domain in selected_domains]
     ax.legend(handles=handles, title="Domains", bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
 
     plt.grid(axis='x')
@@ -107,9 +113,18 @@ if uploaded_file is not None:
 
     selected_proteins = st.multiselect("Select Protein(s):", options=list(protein_names))
 
-    selected_domains = st.multiselect("Select Domain(s):", options=list(set(entry[3] for entry in domain_data)))
+    if selected_proteins:
+        selected_domains = st.multiselect("Select Domain(s):", options=list(set(entry[3] for entry in domain_data)))
 
-    shape_choice = st.selectbox("Select Domain Shape:", ["Rectangle", "Rounded Rectangle", "Oval"])
+        if selected_domains:
+            shape_choice = st.selectbox("Select Domain Shape:", ["Rectangle", "Rounded Rectangle", "Oval"])
 
-    if st.button("Visualize Selected Proteins"):
-        plot_domains(domain_data, selected_proteins, selected_domains, shape_choice)
+            # Automatically assign random colors to each domain
+            domain_colors = {domain: random_color() for domain in selected_domains}
+
+            st.write("You can customize the domain colors below:")
+            for domain in selected_domains:
+                domain_colors[domain] = st.color_picker(f"Pick a color for {domain}", domain_colors[domain])
+
+            if st.button("Visualize Selected Proteins"):
+                plot_domains(domain_data, selected_proteins, selected_domains, shape_choice, domain_colors)
