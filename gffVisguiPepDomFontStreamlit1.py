@@ -119,12 +119,18 @@ if uploaded_file is not None:
         if selected_domains:
             shape_choice = st.selectbox("Select Domain Shape:", ["Rectangle", "Rounded Rectangle", "Oval"])
 
-            # Automatically assign random colors to each domain
-            domain_colors = {domain: random_color() for domain in selected_domains}
+            # Initialize color storage in session state if not already done
+            if 'domain_colors' not in st.session_state:
+                st.session_state.domain_colors = {domain: random_color() for domain in selected_domains}
+
+            # Ensure all selected domains have a color (avoid resetting on re-selection)
+            for domain in selected_domains:
+                if domain not in st.session_state.domain_colors:
+                    st.session_state.domain_colors[domain] = random_color()
 
             st.write("You can customize the domain colors below:")
             for domain in selected_domains:
-                domain_colors[domain] = st.color_picker(f"Pick a color for {domain}", domain_colors[domain])
+                st.session_state.domain_colors[domain] = st.color_picker(f"Pick a color for {domain}", st.session_state.domain_colors[domain])
 
             if st.button("Visualize Selected Proteins"):
-                plot_domains(domain_data, selected_proteins, selected_domains, shape_choice, domain_colors)
+                plot_domains(domain_data, selected_proteins, selected_domains, shape_choice, st.session_state.domain_colors)
